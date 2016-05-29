@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-
 import org.opencv.android.OpenCVLoader;
 
 public class MainActivity extends AppCompatActivity {
@@ -19,6 +18,12 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "OpenCV Loaded");
         }
     }
+
+//    static {
+//        System.loadLibrary("opencv_java3");
+//    }
+
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
