@@ -2,7 +2,7 @@ apply plugin: 'com.android.application'
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "23.0.0"
+    buildToolsVersion "23.0.3"
 
     defaultConfig {
         applicationId "com.rohsins.imageprocessing"
@@ -18,10 +18,10 @@ android {
         }
     }
 //    sourceSets { main { jni.srcDirs = ['src/main/jni', 'src/main/jniLibs/'] } }
-    sourceSets.main {
-        jniLibs.srcDir 'src/main/libs'
-        jni.srcDirs = [] //disable automatic ndk-build call
-    }
+//    sourceSets.main {
+//        jniLibs.srcDir 'src/main/libs'
+//        jni.srcDirs = [] //disable automatic ndk-build call
+//    }
 //    }
 
 }
