@@ -36,6 +36,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         cameraBridgeViewBase = (CameraBridgeViewBase) findViewById(R.id.mainactivity_surface_view);
         cameraBridgeViewBase.setVisibility(CameraBridgeViewBase.VISIBLE);
         cameraBridgeViewBase.setCvCameraViewListener(this);
+        cameraBridgeViewBase.setCameraIndex(cameraBridgeViewBase.CAMERA_ID_BACK);
     }
 
     @Override
