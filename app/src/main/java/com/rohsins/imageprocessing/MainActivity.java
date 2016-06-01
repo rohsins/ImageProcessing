@@ -5,6 +5,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.ViewDebug;
 import android.view.WindowManager;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -15,7 +16,15 @@ import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
+import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
 
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
@@ -26,8 +35,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Mat inputFrame2;
     private Mat diffImage;
     private Mat thresholdImage;
+    private Mat buffer;
+    private List<MatOfPoint> contours;
+    private List<MatOfPoint> matchedContours;
+    private Mat hierarchy;
 
-    private int flag = 0;
+    private boolean objectDetected = false;
 
     static {
         if (!OpenCVLoader.initDebug()) {
@@ -122,26 +135,53 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         inputFrame2 = new Mat(height, width, CvType.CV_8UC1);
         diffImage = new Mat(height, width, CvType.CV_8UC1);
         thresholdImage = new Mat(height, width, CvType.CV_8UC1);
+        buffer = new Mat(height, width, CvType.CV_8UC4);
+        hierarchy = new Mat(height, width, CvType.CV_8UC4);
+        contours = new ArrayList<>();
+        matchedContours = new ArrayList<>();
     }
 
     @Override
     public void onCameraViewStopped() {
+        inputFrame1.release();
+        inputFrame2.release();
+        diffImage.release();
+        thresholdImage.release();
+        hierarchy.release();
+        matchedContours.clear();
+        contours.clear();
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        if (flag == 0 ) {
-            inputFrame1 = inputFrame.gray();
-            flag = 1;
-        } else if (flag == 1) {
-            inputFrame2 = inputFrame.gray();
-            flag = 0;
-        }
+        inputFrame1 = inputFrame.gray();
         Core.absdiff(inputFrame1, inputFrame2, diffImage);
-        Imgproc.threshold(diffImage, thresholdImage, 20, 255, Imgproc.THRESH_BINARY);
+        inputFrame2 = inputFrame.gray();
+        buffer = inputFrame.rgba();
+        Imgproc.threshold(diffImage, thresholdImage, 80, 255, Imgproc.THRESH_BINARY);
+        Imgproc.blur(thresholdImage, thresholdImage, new Size(80,80));
+        Imgproc.threshold(diffImage, thresholdImage, 80, 255, Imgproc.THRESH_BINARY);
+        Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+        if (contours.size() > 0) objectDetected = true;
+        if (objectDetected) {
+            objectDetected = false;
+            for (MatOfPoint contour : contours) {
+                double actualArea = Imgproc.contourArea(contour);
+                double width = contour.width();
+                double radius = width / 2;
+                double calculatedArea = Math.PI * Math.pow(radius, 2);
+                if ((actualArea - calculatedArea) < 10000) {
+                    matchedContours.add(contour);
+                }
+            }
+            Imgproc.drawContours(buffer, matchedContours, -1, new Scalar(0, 255, 0));
+            matchedContours.clear();
+            contours.clear();
+        }
         System.gc();
 //        return inputFrame.rgba();
 //        return inputFrame1;
-        return thresholdImage;
+//        return thresholdImage;
+        return buffer;
     }
 }
