@@ -34,6 +34,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         cameraBridgeViewBase = (CameraBridgeViewBase) findViewById(R.id.mainactivity_surface_view);
+        cameraBridgeViewBase.setCameraIndex(0);
+//        cameraBridgeViewBase.enableFpsMeter();
         cameraBridgeViewBase.setVisibility(CameraBridgeViewBase.VISIBLE);
         cameraBridgeViewBase.setCvCameraViewListener(this);
         cameraBridgeViewBase.setCameraIndex(cameraBridgeViewBase.CAMERA_ID_BACK);
@@ -106,16 +108,15 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     @Override
     public void onCameraViewStarted(int width, int height) {
-
     }
 
     @Override
     public void onCameraViewStopped() {
-
     }
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        System.gc();
         return inputFrame.rgba();
     }
 }
