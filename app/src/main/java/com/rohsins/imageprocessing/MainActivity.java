@@ -12,12 +12,22 @@ import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.imgproc.Imgproc;
 
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "MainActivity";
     private CameraBridgeViewBase cameraBridgeViewBase;
+
+    private Mat inputFrame1;
+    private Mat inputFrame2;
+    private Mat diffImage;
+    private Mat thresholdImage;
+
+    private int flag = 0;
 
     static {
         if (!OpenCVLoader.initDebug()) {
@@ -108,6 +118,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     @Override
     public void onCameraViewStarted(int width, int height) {
+        inputFrame1 = new Mat(height, width, CvType.CV_8UC1);
+        inputFrame2 = new Mat(height, width, CvType.CV_8UC1);
+        diffImage = new Mat(height, width, CvType.CV_8UC1);
+        thresholdImage = new Mat(height, width, CvType.CV_8UC1);
     }
 
     @Override
@@ -116,7 +130,18 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
+        if (flag == 0 ) {
+            inputFrame1 = inputFrame.gray();
+            flag = 1;
+        } else if (flag == 1) {
+            inputFrame2 = inputFrame.gray();
+            flag = 0;
+        }
+        Core.absdiff(inputFrame1, inputFrame2, diffImage);
+        Imgproc.threshold(diffImage, thresholdImage, 20, 255, Imgproc.THRESH_BINARY);
         System.gc();
-        return inputFrame.rgba();
+//        return inputFrame.rgba();
+//        return inputFrame1;
+        return thresholdImage;
     }
 }
