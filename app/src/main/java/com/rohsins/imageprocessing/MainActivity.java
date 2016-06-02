@@ -2,6 +2,7 @@ package com.rohsins.imageprocessing;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.text.Html;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -17,7 +18,9 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
 import org.opencv.core.Point;
+import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
@@ -158,9 +161,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         Core.absdiff(inputFrame1, inputFrame2, diffImage);
         inputFrame2 = inputFrame.gray();
         buffer = inputFrame.rgba();
-        Imgproc.threshold(diffImage, thresholdImage, 80, 255, Imgproc.THRESH_BINARY);
-        Imgproc.blur(thresholdImage, thresholdImage, new Size(80,80));
-        Imgproc.threshold(diffImage, thresholdImage, 80, 255, Imgproc.THRESH_BINARY);
+        Imgproc.threshold(diffImage, thresholdImage, 128, 255, Imgproc.THRESH_BINARY);
+        Imgproc.blur(thresholdImage, thresholdImage, new Size(40,40));
+//        Imgproc.threshold(diffImage, thresholdImage, 80, 255, Imgproc.THRESH_BINARY);
         Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
         if (contours.size() > 0) objectDetected = true;
         if (objectDetected) {
@@ -170,11 +173,20 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 double width = contour.width();
                 double radius = width / 2;
                 double calculatedArea = Math.PI * Math.pow(radius, 2);
-                if ((actualArea - calculatedArea) < 10000) {
+                if ((actualArea - calculatedArea) < 40000) {
                     matchedContours.add(contour);
                 }
             }
-            Imgproc.drawContours(buffer, matchedContours, -1, new Scalar(0, 255, 0));
+            for (int i  = 0; i < contours.size(); i++) {
+                MatOfPoint2f approxCurve = new MatOfPoint2f();
+                MatOfPoint2f matOfPoint2f = new MatOfPoint2f(contours.get(i).toArray());
+                double approxDistance = Imgproc.arcLength(matOfPoint2f, true) * 0.02;
+                Imgproc.approxPolyDP(matOfPoint2f, approxCurve, approxDistance, true);
+                MatOfPoint points = new MatOfPoint(approxCurve.toArray());
+                Rect rect = Imgproc.boundingRect(points);
+                Imgproc.rectangle(buffer, new Point(rect.x,rect.y), new Point(rect.x+rect.width, rect.y+rect.height), new Scalar(255, 0 , 0, 255), 3);
+            }
+//            Imgproc.drawContours(buffer, matchedContours, -1, new Scalar(0, 255, 0));
             matchedContours.clear();
             contours.clear();
         }
