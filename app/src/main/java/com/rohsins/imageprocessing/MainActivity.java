@@ -1,12 +1,11 @@
 package com.rohsins.imageprocessing;
 
 import android.app.Activity;
+import android.content.Context;
 import android.os.Bundle;
-import android.text.Html;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.ViewDebug;
 import android.view.WindowManager;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -19,15 +18,20 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
 import org.opencv.imgproc.Imgproc;
+import org.opencv.objdetect.CascadeClassifier;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Vector;
 
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
@@ -42,13 +46,22 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private List<MatOfPoint> contours;
     private List<MatOfPoint> matchedContours;
     private Mat hierarchy;
+    private Mat inputRgbaFrame;
+    private Mat inputGrayFrame;
+
+    private File cascadeFile;
+    private CascadeClassifier cascadeClassifier;
+
+    private static final Scalar FACE_RECT_COLOR = new Scalar(0, 255, 0 , 255);
+
+    private int absoluteFaceSize;
 
     private MenuItem highSpeedObjectDetection;
     private MenuItem faceDetection;
 
-    private int modeFlag = 0;
+    private int modeFlag;
 
-    private boolean objectDetected = false;
+    private boolean objectDetected;
 
     static {
         if (!OpenCVLoader.initDebug()) {
@@ -56,6 +69,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         } else {
             Log.d(TAG, "OpenCV Loaded");
         }
+    }
+
+    public MainActivity() {
+        modeFlag = 1;
+        objectDetected = false;
+        absoluteFaceSize = 0;
     }
 
     @Override
@@ -128,12 +147,35 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         return super.onOptionsItemSelected(item);
     }
 
+    private void faceDetectionDependenciesInitialization() {
+        try {
+            InputStream inputStream = getResources().openRawResource(R.raw.lbpcascade_frontalface);
+            File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
+            cascadeFile = new File(cascadeDir, "lbpcascade_frontalface.xml");
+            FileOutputStream outputStream = new FileOutputStream(cascadeFile);
+
+            byte[] byteBuffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(byteBuffer)) != -1) {
+                outputStream.write(byteBuffer, 0, bytesRead);
+            }
+            inputStream.close();
+            outputStream.close();
+
+            cascadeClassifier = new CascadeClassifier(cascadeFile.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private BaseLoaderCallback baseLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
             switch (status) {
-                case BaseLoaderCallback.SUCCESS:
-                {
+                case BaseLoaderCallback.SUCCESS: {
+//                    if (modeFlag == 1) {
+                        faceDetectionDependenciesInitialization();
+//                    }
                     cameraBridgeViewBase.enableView();
                 } break;
                 default:
@@ -154,6 +196,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         hierarchy = new Mat(height, width, CvType.CV_8UC4);
         contours = new ArrayList<>();
         matchedContours = new ArrayList<>();
+        inputGrayFrame = new Mat();
+        inputRgbaFrame = new Mat();
+
+        absoluteFaceSize = (int) (height * 0.2);
     }
 
     @Override
@@ -206,33 +252,30 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 }
             } break;
             case 1: {
+                inputRgbaFrame = inputFrame.rgba();
+                inputGrayFrame = inputFrame.gray();
+                MatOfRect faces = new MatOfRect();
+                if (cascadeClassifier != null) {
+                    cascadeClassifier.detectMultiScale(inputGrayFrame, faces, 1.1, 2, 2, new Size(absoluteFaceSize, absoluteFaceSize), new Size());
+                }
+                Rect[] facesArray = faces.toArray();
+                for (int i = 0; i < facesArray.length; i++) {
+                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+                }
+                buffer = inputRgbaFrame;
+            } break;
+            case 2: {
                 inputFrame1 = inputFrame.gray();
                 Core.absdiff(inputFrame1, inputFrame2, diffImage);
                 inputFrame2 = inputFrame.gray();
                 buffer = inputFrame.rgba();
-                Imgproc.threshold(diffImage, thresholdImage, 100, 255, Imgproc.THRESH_BINARY);
+                Imgproc.threshold(diffImage, thresholdImage, 40, 255, Imgproc.THRESH_BINARY);
                 Imgproc.blur(thresholdImage, thresholdImage, new Size(40, 40));
                 Imgproc.threshold(thresholdImage, thresholdImage, 120, 255, Imgproc.THRESH_BINARY);
-//                Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-//                if (contours.size() > 0) objectDetected = true;
-//                if (objectDetected) {
-//                    objectDetected = false;
-//                    for (MatOfPoint contour : contours) {
-//                        double actualArea = Imgproc.contourArea(contour);
-//                        double width = contour.width();
-//                        double radius = width / 2;
-//                        double calculatedArea = Math.PI * Math.pow(radius, 2);
-//                        if ((actualArea - calculatedArea) < 10000) {
-//                            matchedContours.add(contour);
-//                        }
-//                    }
                 buffer = thresholdImage;
             } break;
         }
         System.gc();
-//        return inputFrame.rgba();
-//        return inputFrame1;
-//        return thresholdImage;
         return buffer;
     }
 }
