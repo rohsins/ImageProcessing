@@ -43,6 +43,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private List<MatOfPoint> matchedContours;
     private Mat hierarchy;
 
+    private MenuItem highSpeedObjectDetection;
+    private MenuItem faceDetection;
+
+    private int modeFlag = 0;
+
     private boolean objectDetected = false;
 
     static {
@@ -97,6 +102,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
+        highSpeedObjectDetection = menu.add("highSpeedObjectDetection");
+        faceDetection = menu.add("faceDetection");
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
@@ -107,7 +114,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-
+        if (item == highSpeedObjectDetection) {
+            modeFlag = 0;
+        }
+        if (item == faceDetection) {
+            modeFlag = 1;
+        }
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
             return true;
@@ -157,38 +169,65 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     @Override
     public Mat onCameraFrame(CameraBridgeViewBase.CvCameraViewFrame inputFrame) {
-        inputFrame1 = inputFrame.gray();
-        Core.absdiff(inputFrame1, inputFrame2, diffImage);
-        inputFrame2 = inputFrame.gray();
-        buffer = inputFrame.rgba();
-        Imgproc.threshold(diffImage, thresholdImage, 128, 255, Imgproc.THRESH_BINARY);
-        Imgproc.blur(thresholdImage, thresholdImage, new Size(40,40));
-//        Imgproc.threshold(diffImage, thresholdImage, 80, 255, Imgproc.THRESH_BINARY);
-        Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
-        if (contours.size() > 0) objectDetected = true;
-        if (objectDetected) {
-            objectDetected = false;
-            for (MatOfPoint contour : contours) {
-                double actualArea = Imgproc.contourArea(contour);
-                double width = contour.width();
-                double radius = width / 2;
-                double calculatedArea = Math.PI * Math.pow(radius, 2);
-                if ((actualArea - calculatedArea) < 40000) {
-                    matchedContours.add(contour);
-                }
-            }
-            for (int i  = 0; i < contours.size(); i++) {
-                MatOfPoint2f approxCurve = new MatOfPoint2f();
-                MatOfPoint2f matOfPoint2f = new MatOfPoint2f(contours.get(i).toArray());
-                double approxDistance = Imgproc.arcLength(matOfPoint2f, true) * 0.02;
-                Imgproc.approxPolyDP(matOfPoint2f, approxCurve, approxDistance, true);
-                MatOfPoint points = new MatOfPoint(approxCurve.toArray());
-                Rect rect = Imgproc.boundingRect(points);
-                Imgproc.rectangle(buffer, new Point(rect.x,rect.y), new Point(rect.x+rect.width, rect.y+rect.height), new Scalar(255, 0 , 0, 255), 3);
-            }
+        switch (modeFlag) {
+            case 0: {
+                inputFrame1 = inputFrame.gray();
+                Core.absdiff(inputFrame1, inputFrame2, diffImage);
+                inputFrame2 = inputFrame.gray();
+                buffer = inputFrame.rgba();
+                Imgproc.threshold(diffImage, thresholdImage, 40, 255, Imgproc.THRESH_BINARY);
+                Imgproc.blur(thresholdImage, thresholdImage, new Size(40, 40));
+                Imgproc.threshold(thresholdImage, thresholdImage, 120, 255, Imgproc.THRESH_BINARY);
+                Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+                if (contours.size() > 0) objectDetected = true;
+                if (objectDetected) {
+                    objectDetected = false;
+                    for (MatOfPoint contour : contours) {
+                        double actualArea = Imgproc.contourArea(contour);
+                        double width = contour.width();
+                        double radius = width / 2;
+                        double calculatedArea = Math.PI * Math.pow(radius, 2);
+                        if ((actualArea - calculatedArea) < 10000) {
+                            matchedContours.add(contour);
+                        }
+                    }
+                    for (int i = 0; i < contours.size(); i++) {
+                        MatOfPoint2f approxCurve = new MatOfPoint2f();
+                        MatOfPoint2f matOfPoint2f = new MatOfPoint2f(contours.get(i).toArray());
+                        double approxDistance = Imgproc.arcLength(matOfPoint2f, true) * 0.02;
+                        Imgproc.approxPolyDP(matOfPoint2f, approxCurve, approxDistance, true);
+                        MatOfPoint points = new MatOfPoint(approxCurve.toArray());
+                        Rect rect = Imgproc.boundingRect(points);
+                        Imgproc.rectangle(buffer, new Point(rect.x, rect.y), new Point(rect.x + rect.width, rect.y + rect.height), new Scalar(255, 0, 0, 255), 2);
+                    }
 //            Imgproc.drawContours(buffer, matchedContours, -1, new Scalar(0, 255, 0));
-            matchedContours.clear();
-            contours.clear();
+                    matchedContours.clear();
+                    contours.clear();
+                }
+            } break;
+            case 1: {
+                inputFrame1 = inputFrame.gray();
+                Core.absdiff(inputFrame1, inputFrame2, diffImage);
+                inputFrame2 = inputFrame.gray();
+                buffer = inputFrame.rgba();
+                Imgproc.threshold(diffImage, thresholdImage, 100, 255, Imgproc.THRESH_BINARY);
+                Imgproc.blur(thresholdImage, thresholdImage, new Size(40, 40));
+                Imgproc.threshold(thresholdImage, thresholdImage, 120, 255, Imgproc.THRESH_BINARY);
+//                Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+//                if (contours.size() > 0) objectDetected = true;
+//                if (objectDetected) {
+//                    objectDetected = false;
+//                    for (MatOfPoint contour : contours) {
+//                        double actualArea = Imgproc.contourArea(contour);
+//                        double width = contour.width();
+//                        double radius = width / 2;
+//                        double calculatedArea = Math.PI * Math.pow(radius, 2);
+//                        if ((actualArea - calculatedArea) < 10000) {
+//                            matchedContours.add(contour);
+//                        }
+//                    }
+                buffer = thresholdImage;
+            } break;
         }
         System.gc();
 //        return inputFrame.rgba();
