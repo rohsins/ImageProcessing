@@ -3,6 +3,7 @@ package com.rohsins.imageprocessing;
 import android.app.Activity;
 import android.content.Context;
 import android.os.Bundle;
+import android.provider.ContactsContract;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -18,6 +19,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.MatOfPoint3f;
 import org.opencv.core.MatOfRect;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
@@ -32,7 +34,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.Vector;
 
 public class MainActivity extends Activity implements CvCameraViewListener2 {
     private static final String TAG = "MainActivity";
@@ -50,14 +52,19 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private Mat inputGrayFrame;
 
     private File cascadeFile;
+    private File cascadeFileEyes;
     private CascadeClassifier cascadeClassifier;
+    private CascadeClassifier cascadeClassifierEyes;
 
     private static final Scalar FACE_RECT_COLOR = new Scalar(0, 255, 0 , 255);
+    private final Scalar EYES_RECT_COLOR = new Scalar(0, 255, 0, 255);
 
     private int absoluteFaceSize;
 
     private MenuItem highSpeedObjectDetection;
     private MenuItem faceDetection;
+    private MenuItem eyesDetection;
+    private MenuItem calibration;
 
     private int modeFlag;
 
@@ -72,7 +79,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public MainActivity() {
-        modeFlag = 1;
+        modeFlag = 2;
         objectDetected = false;
         absoluteFaceSize = 0;
     }
@@ -123,6 +130,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         // Inflate the menu; this adds items to the action bar if it is present.
         highSpeedObjectDetection = menu.add("highSpeedObjectDetection");
         faceDetection = menu.add("faceDetection");
+        eyesDetection = menu.add("eyesDetection");
+        calibration = menu.add("calibration");
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
@@ -135,9 +144,14 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         int id = item.getItemId();
         if (item == highSpeedObjectDetection) {
             modeFlag = 0;
-        }
-        if (item == faceDetection) {
+        } else if (item == faceDetection) {
             modeFlag = 1;
+            faceDetectionDependenciesInitialization();
+        } else if (item == eyesDetection) {
+            modeFlag = 2;
+            eyesDetectionDependenciesInitialization();
+        } else if (item == calibration) {
+            modeFlag = 4;
         }
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
@@ -168,14 +182,38 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
+    private void eyesDetectionDependenciesInitialization() {
+        try {
+            InputStream inputStream = getResources().openRawResource(R.raw.haarcascade_eye);
+            File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
+            cascadeFileEyes = new File(cascadeDir, "haarcascade_eye.xml");
+            FileOutputStream outputStream = new FileOutputStream(cascadeFileEyes);
+
+            byte[] byteBuffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(byteBuffer)) != -1) {
+                outputStream.write(byteBuffer, 0, bytesRead);
+            }
+            inputStream.close();
+            outputStream.close();
+
+            cascadeClassifierEyes = new CascadeClassifier(cascadeFileEyes.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private BaseLoaderCallback baseLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
             switch (status) {
                 case BaseLoaderCallback.SUCCESS: {
-//                    if (modeFlag == 1) {
+                    if (modeFlag == 1) {
                         faceDetectionDependenciesInitialization();
-//                    }
+                    } else if (modeFlag == 2) {
+                        modeFlag = 2;
+                        eyesDetectionDependenciesInitialization();
+                    }
                     cameraBridgeViewBase.enableView();
                 } break;
                 default:
@@ -244,7 +282,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                         Imgproc.approxPolyDP(matOfPoint2f, approxCurve, approxDistance, true);
                         MatOfPoint points = new MatOfPoint(approxCurve.toArray());
                         Rect rect = Imgproc.boundingRect(points);
-                        Imgproc.rectangle(buffer, new Point(rect.x, rect.y), new Point(rect.x + rect.width, rect.y + rect.height), new Scalar(255, 0, 0, 255), 2);
+                        Imgproc.rectangle(buffer, new Point(rect.x, rect.y), new Point(rect.x + rect.width, rect.y + rect.height), new Scalar(255, 0, 0, 255), 1);
                     }
 //            Imgproc.drawContours(buffer, matchedContours, -1, new Scalar(0, 255, 0));
                     matchedContours.clear();
@@ -260,11 +298,27 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 }
                 Rect[] facesArray = faces.toArray();
                 for (int i = 0; i < facesArray.length; i++) {
-                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 1);
                 }
                 buffer = inputRgbaFrame;
             } break;
             case 2: {
+                inputRgbaFrame = inputFrame.rgba();
+                inputGrayFrame = inputFrame.gray();
+                MatOfRect faces = new MatOfRect();
+                if (cascadeClassifierEyes != null) {
+                    cascadeClassifierEyes.detectMultiScale(inputGrayFrame, faces, 1.1, 1, 1, new Size(absoluteFaceSize * 0.9, absoluteFaceSize * 0.9), new Size());
+                }
+                Rect[] facesArray = faces.toArray();
+                for (int i = 0; i < facesArray.length; i++) {
+                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), EYES_RECT_COLOR, 1);
+                }
+                buffer = inputRgbaFrame;
+            } break;
+            case 3: {
+                buffer = inputFrame.gray();
+            } break;
+            case 4: {
                 inputFrame1 = inputFrame.gray();
                 Core.absdiff(inputFrame1, inputFrame2, diffImage);
                 inputFrame2 = inputFrame.gray();
