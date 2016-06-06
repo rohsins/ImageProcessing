@@ -53,20 +53,27 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
 
     private File cascadeFile;
     private File cascadeFileEyes;
+    private File cascadeFileBody;
     private CascadeClassifier cascadeClassifier;
     private CascadeClassifier cascadeClassifierEyes;
+    private CascadeClassifier cascadeClassifierBody;
 
     private static final Scalar FACE_RECT_COLOR = new Scalar(0, 255, 0 , 255);
     private final Scalar EYES_RECT_COLOR = new Scalar(0, 255, 0, 255);
 
     private int absoluteFaceSize;
+    private int absoluteEyeSize;
+    private int absoluteBodySize;
 
     private MenuItem highSpeedObjectDetection;
     private MenuItem faceDetection;
     private MenuItem eyesDetection;
+    private MenuItem bodyDetection;
     private MenuItem calibration;
+    private MenuItem switchCamera;
 
     private int modeFlag;
+    private int cameraFlag;
 
     private boolean objectDetected;
 
@@ -82,6 +89,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         modeFlag = 2;
         objectDetected = false;
         absoluteFaceSize = 0;
+        cameraFlag = 1;
     }
 
     @Override
@@ -96,6 +104,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         cameraBridgeViewBase.setVisibility(CameraBridgeViewBase.VISIBLE);
         cameraBridgeViewBase.setCvCameraViewListener(this);
         cameraBridgeViewBase.setCameraIndex(cameraBridgeViewBase.CAMERA_ID_BACK);
+//        cameraBridgeViewBase.setCameraIndex(cameraBridgeViewBase.CAMERA_ID_FRONT);
     }
 
     @Override
@@ -131,7 +140,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         highSpeedObjectDetection = menu.add("highSpeedObjectDetection");
         faceDetection = menu.add("faceDetection");
         eyesDetection = menu.add("eyesDetection");
+        bodyDetection = menu.add("bodyDetection");
         calibration = menu.add("calibration");
+        switchCamera = menu.add("switchCamera");
         getMenuInflater().inflate(R.menu.menu_main, menu);
         return true;
     }
@@ -150,8 +161,25 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         } else if (item == eyesDetection) {
             modeFlag = 2;
             eyesDetectionDependenciesInitialization();
-        } else if (item == calibration) {
+        } else if (item == bodyDetection) {
+            modeFlag = 3;
+            bodyDetectionDependenciesInitialization();
+        }
+        else if (item == calibration) {
             modeFlag = 4;
+        } else if (item == switchCamera) {
+            if (cameraFlag == 0) {
+                cameraBridgeViewBase.disableView();
+                cameraBridgeViewBase.setCameraIndex(cameraBridgeViewBase.CAMERA_ID_BACK);
+                cameraFlag = 1;
+                cameraBridgeViewBase.enableView();
+            }
+            else if (cameraFlag == 1) {
+                cameraBridgeViewBase.disableView();
+                cameraBridgeViewBase.setCameraIndex(cameraBridgeViewBase.CAMERA_ID_FRONT);
+                cameraFlag = 0;
+                cameraBridgeViewBase.enableView();
+            }
         }
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
@@ -203,6 +231,27 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         }
     }
 
+    private void bodyDetectionDependenciesInitialization() {
+        try {
+            InputStream inputStream = getResources().openRawResource(R.raw.haarcascade_fullbody);
+            File cascadeDir = getDir("cascade", Context.MODE_PRIVATE);
+            cascadeFileBody = new File(cascadeDir, "haarcascade_fullbody.xml");
+            FileOutputStream outputStream = new FileOutputStream(cascadeFileBody);
+
+            byte[] byteBuffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(byteBuffer)) != -1) {
+                outputStream.write(byteBuffer, 0, bytesRead);
+            }
+            inputStream.close();
+            outputStream.close();
+
+            cascadeClassifierBody = new CascadeClassifier(cascadeFileBody.getAbsolutePath());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private BaseLoaderCallback baseLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
@@ -213,6 +262,9 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                     } else if (modeFlag == 2) {
                         modeFlag = 2;
                         eyesDetectionDependenciesInitialization();
+                    } else if (modeFlag == 3) {
+                        modeFlag = 3;
+                        bodyDetectionDependenciesInitialization();
                     }
                     cameraBridgeViewBase.enableView();
                 } break;
@@ -238,6 +290,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         inputRgbaFrame = new Mat();
 
         absoluteFaceSize = (int) (height * 0.2);
+        absoluteEyeSize = (int) (height * 0.1);
+        absoluteBodySize = (int) (height * 0.5);
     }
 
     @Override
@@ -294,11 +348,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 inputGrayFrame = inputFrame.gray();
                 MatOfRect faces = new MatOfRect();
                 if (cascadeClassifier != null) {
-                    cascadeClassifier.detectMultiScale(inputGrayFrame, faces, 1.1, 2, 2, new Size(absoluteFaceSize, absoluteFaceSize), new Size());
+                    cascadeClassifier.detectMultiScale(inputGrayFrame, faces, 1.1, 3, 3, new Size(absoluteFaceSize, absoluteFaceSize), new Size());
                 }
                 Rect[] facesArray = faces.toArray();
                 for (int i = 0; i < facesArray.length; i++) {
-                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 1);
+                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
                 }
                 buffer = inputRgbaFrame;
             } break;
@@ -307,7 +361,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 inputGrayFrame = inputFrame.gray();
                 MatOfRect faces = new MatOfRect();
                 if (cascadeClassifierEyes != null) {
-                    cascadeClassifierEyes.detectMultiScale(inputGrayFrame, faces, 1.1, 1, 1, new Size(absoluteFaceSize * 0.9, absoluteFaceSize * 0.9), new Size());
+                    cascadeClassifierEyes.detectMultiScale(inputGrayFrame, faces, 1.2, 1, 1, new Size(absoluteEyeSize , absoluteEyeSize), new Size());
                 }
                 Rect[] facesArray = faces.toArray();
                 for (int i = 0; i < facesArray.length; i++) {
@@ -316,7 +370,17 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 buffer = inputRgbaFrame;
             } break;
             case 3: {
-                buffer = inputFrame.gray();
+                inputRgbaFrame = inputFrame.rgba();
+                inputGrayFrame = inputFrame.gray();
+                MatOfRect Bodies = new MatOfRect();
+                if (cascadeClassifierBody != null) {
+                    cascadeClassifierBody.detectMultiScale(inputGrayFrame, Bodies, 1.1, 2, 2, new Size(absoluteBodySize, absoluteBodySize), new Size());
+                }
+                Rect[] BodyArray = Bodies.toArray();
+                for (int i = 0; i < BodyArray.length; i++) {
+                    Imgproc.rectangle(inputRgbaFrame, BodyArray[i].tl(), BodyArray[i].br(), FACE_RECT_COLOR, 3);
+                }
+                buffer = inputRgbaFrame;
             } break;
             case 4: {
                 inputFrame1 = inputFrame.gray();
