@@ -62,8 +62,12 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     private final Scalar EYES_RECT_COLOR = new Scalar(0, 255, 0, 255);
 
     private int absoluteFaceSize;
-    private int absoluteEyeSize;
-    private int absoluteBodySize;
+    private int absoluteEyeSizeX;
+    private int absoluteEyeSizeY;
+    private int absoluteMinBodySizeX;
+    private int absoluteMinBodySizeY;
+    private int highSpeedObjectDetectionSensitivity = 20;
+    private int getHighSpeedObjectDetectionBlur = 20;
 
     private MenuItem highSpeedObjectDetection;
     private MenuItem faceDetection;
@@ -86,7 +90,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public MainActivity() {
-        modeFlag = 2;
+        modeFlag = 0;
         objectDetected = false;
         absoluteFaceSize = 0;
         cameraFlag = 1;
@@ -290,8 +294,10 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
         inputRgbaFrame = new Mat();
 
         absoluteFaceSize = (int) (height * 0.2);
-        absoluteEyeSize = (int) (height * 0.1);
-        absoluteBodySize = (int) (height * 0.5);
+        absoluteEyeSizeX = (int) (height * 0.2);
+        absoluteEyeSizeY = (int) (height * 0.1);
+        absoluteMinBodySizeX = (int) (3);
+        absoluteMinBodySizeY = (int) (7);
     }
 
     @Override
@@ -313,13 +319,13 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 Core.absdiff(inputFrame1, inputFrame2, diffImage);
                 inputFrame2 = inputFrame.gray();
                 buffer = inputFrame.rgba();
-                Imgproc.threshold(diffImage, thresholdImage, 40, 255, Imgproc.THRESH_BINARY);
-                Imgproc.blur(thresholdImage, thresholdImage, new Size(40, 40));
-                Imgproc.threshold(thresholdImage, thresholdImage, 120, 255, Imgproc.THRESH_BINARY);
+                Imgproc.threshold(diffImage, thresholdImage, highSpeedObjectDetectionSensitivity, 255, Imgproc.THRESH_BINARY);
+                Imgproc.blur(thresholdImage, thresholdImage, new Size(10, 10));
+                Imgproc.threshold(thresholdImage, thresholdImage, getHighSpeedObjectDetectionBlur, 255, Imgproc.THRESH_BINARY);
                 Imgproc.findContours(thresholdImage, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
                 if (contours.size() > 0) objectDetected = true;
+                else objectDetected = false;
                 if (objectDetected) {
-                    objectDetected = false;
                     for (MatOfPoint contour : contours) {
                         double actualArea = Imgproc.contourArea(contour);
                         double width = contour.width();
@@ -336,7 +342,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                         Imgproc.approxPolyDP(matOfPoint2f, approxCurve, approxDistance, true);
                         MatOfPoint points = new MatOfPoint(approxCurve.toArray());
                         Rect rect = Imgproc.boundingRect(points);
-                        Imgproc.rectangle(buffer, new Point(rect.x, rect.y), new Point(rect.x + rect.width, rect.y + rect.height), new Scalar(255, 0, 0, 255), 1);
+                        Imgproc.rectangle(buffer, new Point(rect.x, rect.y), new Point(rect.x + rect.width, rect.y + rect.height), new Scalar(0, 255, 0, 255), 2);
+                        Imgproc.putText(buffer,"Tracking Object", new Point(rect.x, rect.y), 1, 1, new Scalar(0, 255, 0),1);
                     }
 //            Imgproc.drawContours(buffer, matchedContours, -1, new Scalar(0, 255, 0));
                     matchedContours.clear();
@@ -352,7 +359,8 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 }
                 Rect[] facesArray = faces.toArray();
                 for (int i = 0; i < facesArray.length; i++) {
-                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+                    Imgproc.rectangle(inputRgbaFrame, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 2);
+                    Imgproc.putText(inputRgbaFrame,"You Look Awesome", new Point(facesArray[i].x, facesArray[i].y - 7), 2, 1, new Scalar(0, 255, 0),2);
                 }
                 buffer = inputRgbaFrame;
             } break;
@@ -361,7 +369,7 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 inputGrayFrame = inputFrame.gray();
                 MatOfRect faces = new MatOfRect();
                 if (cascadeClassifierEyes != null) {
-                    cascadeClassifierEyes.detectMultiScale(inputGrayFrame, faces, 1.2, 1, 1, new Size(absoluteEyeSize , absoluteEyeSize), new Size());
+                    cascadeClassifierEyes.detectMultiScale(inputGrayFrame, faces, 1.1, 1, 1, new Size(absoluteEyeSizeX , absoluteEyeSizeY), new Size());
                 }
                 Rect[] facesArray = faces.toArray();
                 for (int i = 0; i < facesArray.length; i++) {
@@ -374,11 +382,11 @@ public class MainActivity extends Activity implements CvCameraViewListener2 {
                 inputGrayFrame = inputFrame.gray();
                 MatOfRect Bodies = new MatOfRect();
                 if (cascadeClassifierBody != null) {
-                    cascadeClassifierBody.detectMultiScale(inputGrayFrame, Bodies, 1.1, 2, 2, new Size(absoluteBodySize, absoluteBodySize), new Size());
+                    cascadeClassifierBody.detectMultiScale(inputGrayFrame, Bodies, 1.1, 2, 18|9, new Size(absoluteMinBodySizeX, absoluteMinBodySizeY), new Size());
                 }
                 Rect[] BodyArray = Bodies.toArray();
                 for (int i = 0; i < BodyArray.length; i++) {
-                    Imgproc.rectangle(inputRgbaFrame, BodyArray[i].tl(), BodyArray[i].br(), FACE_RECT_COLOR, 3);
+                    Imgproc.rectangle(inputRgbaFrame, BodyArray[i].tl(), BodyArray[i].br(), FACE_RECT_COLOR, 1);
                 }
                 buffer = inputRgbaFrame;
             } break;
